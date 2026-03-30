@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>醫師專用智能排班系統</title>
+    <style>
+        :root {
+            --primary-color: #0056b3; /* 醫療藍 */
+            --secondary-color: #f0f7ff; /* 淺藍背景 */
+            --border-color: #dde0e3;
+            --text-color: #333;
+            --danger-color: #dc3545;
+            --night-color: #d32f2f; /* 大夜紅 */
+            --small-night-color: #1976d2; /* 小夜藍 */
+            --off-color: #9e9e9e; /* 休假灰 */
+            --weekend-bg: #e9ecef; /* 週末背景灰 */
+        }
+
+        body {
+            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+            background-color: #f4f6f8;
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 15px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin: 0;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        input, select {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0, 86, 179, 0.1);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-generate {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 86, 179, 0.2);
+        }
+
+        .btn-generate:hover { background-color: #004494; transform: translateY(-1px); }
+
+        .btn-print { background-color: #6c757d; color: white; }
+        .btn-print:hover { background-color: #5a6268; }
+
+        /* 新增 Excel 按鈕樣式 */
+        .btn-excel { background-color: #28a745; color: white; }
+        .btn-excel:hover { background-color: #218838; }
+
+        #resultTitle {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 22px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        tr:nth-child(even) { background-color: #fafafa; }
+        tr:hover { background-color: #f1f8ff; }
+
+        /* 新增：週末樣式 */
+        .weekend-row { background-color: var(--weekend-bg) !important; }
+
+        /* 班別顏色 */
+        .shift-day { font-weight: bold; color: black; }
+        .shift-sn { font-weight: bold; color: var(--small-night-color); }
+        .shift-bn { font-weight: bold; color: var(--night-color); }
+        .shift-off { color: var(--off-color); }
+
+        /* 新增：統計區塊樣式 */
+        .stats-container {
+            margin-top: 40px;
+            border-top: 2px dashed #ccc;
+            padding-top: 20px;
+        }
+        .stats-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #555;
+            text-align: center;
+        }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; width: 100%; max-width: none; padding: 0; }
+            .input-grid, .btn-group, header { display: none; }
+            #resultTitle { margin-top: 0; font-size: 24px; }
+            table { font-size: 12px; }
+            th { background-color: #ddd !important; color: black !important; -webkit-print-color-adjust: exact; }
+            .shift-sn { color: blue !important; }
+            .shift-bn { color: red !important; }
+            .weekend-row { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>總醫師的救星</h1>
+        <p style="color: #666; font-size: 14px; margin-top:5px;">CHIU 長庚紀念醫院排班系統</p>
+    </header>
+
+    <div class="input-grid">
+        <div class="input-group">
+            <label for="inputDept">1. 科別名稱</label>
+            <input type="text" id="inputDept" placeholder="例如：急診科" value="急診科">
+        </div>
+
+        <div class="input-group">
+            <label for="inputMonth">2. 月份 (1-12)</label>
+            <input type="number" id="inputMonth" placeholder="輸入數字" min="1" max="12">
+        </div>
+
+        <div class="input-group">
+            <label for="inputDays">3. 本月天數</label>
+            <input type="number" id="inputDays" placeholder="預設 30" min="28" max="31" value="30">
+        </div>
+
+        <div class="input-group">
+            <label for="inputExcluded">4. 指定排除醫師</label>
+            <input type="text" id="inputExcluded" placeholder="如：醫師A,醫師B">
+        </div>
+
+        <div class="input-group">
+            <label for="selectShift">5. 該醫師不排之班別</label>
+            <select id="selectShift">
+                <option value="大夜">大夜</option>
+                <option value="小夜">小夜</option>
+                <option value="白班">白班</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn-generate" onclick="generateSchedule()">⚡ 開始自動排班</button>
+        <button class="btn-print" onclick="window.print()">🖨️ 列印班表</button>
+        <button class="btn-excel" onclick="exportToCSV()">📥 匯出 Excel</button>
+    </div>
+
+    <h2 id="resultTitle"></h2>
+    
+    <div id="tableContainer" class="table-responsive"></div>
+
+    <div id="statsContainer" class="stats-container" style="display:none;">
+        <div class="stats-title">📊 班數統計 (公平性檢查)</div>
+        <div id="statsTable" class="table-responsive"></div>
+    </div>
+</div>
+
+<script>
+    // 全域變數，供匯出功能使用
+    let globalScheduleData = [];
+    let globalTitle = "";
+    let globalDocs = [];
+
+    function generateSchedule() {
+        const dept = document.getElementById("inputDept").value.trim();
+        const monthVal = document.getElementById("inputMonth").value.trim();
+        let daysInMonth = parseInt(document.getElementById("inputDays").value);
+        const excludedStr = document.getElementById("inputExcluded").value.trim();
+        const targetShift = document.getElementById("selectShift").value;
+
+        // --- 驗證邏輯 ---
+        if (!monthVal || isNaN(monthVal)) {
+            alert("【錯誤】月份格式錯誤！\n請輸入 1 到 12 之間的數字。");
+            return;
+        }
+        const mNum = parseInt(monthVal);
+        if (mNum < 1 || mNum > 12) {
+            alert(`【錯誤】月份錯誤！\n您輸入了: ${mNum}\n請輸入 1 到 12 之間的數字。`);
+            return;
+        }
+
+        if (isNaN(daysInMonth) || daysInMonth < 28 || daysInMonth > 31) {
+            alert("天數設定異常 (請輸入 28~31)，本次將以 30 天計算。");
+            daysInMonth = 30;
+            document.getElementById("inputDays").value = 30;
+        }
+
+        // --- 處理排除名單 ---
+        let excludedDocs = new Array(10).fill(false);
+        let hasExclusion = false;
+        let docListStr = "";
+
+        if (excludedStr) {
+            const parts = excludedStr.replace(/、/g, ",").replace(/，/g, ",").split(",");
+            parts.forEach(p => {
+                let name = p.trim().toUpperCase();
+                for (let i = 0; i < 10; i++) {
+                    let docName = "醫師" + String.fromCharCode(64 + (i + 1));
+                    if (name === docName) {
+                        excludedDocs[i] = true;
+                        hasExclusion = true;
+                        docListStr += name + " ";
+                    }
+                }
+            });
+            if (!hasExclusion) {
+                alert("指定排除醫師格式錯誤！請輸入如「醫師A,醫師B」。本班表將不排除任何班別");
+            }
+        }
+
+        // --- 標題生成 ---
+        const chiMonths = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
+        globalTitle = `${dept}${chiMonths[mNum]}月班表`;
+        document.getElementById("resultTitle").innerText = globalTitle;
+
+        // === 2. 核心排班邏輯 ===
+        let schedule = []; 
+        let lastShift = new Array(10).fill("");
+        let shiftCounts = new Array(10).fill(0);
+        
+        // 新增：用來統計每個人各種班別的數量 (for 統計表)
+        // stats[doc_index] = { "白班":0, "小夜":0, "大夜":0, "休":0 }
+        let stats = Array.from({length: 10}, () => ({ "白班":0, "小夜":0, "大夜":0, "休":0 }));
+
+        let attemptCount = 0;
+        const dailyShifts = ["白班", "小夜", "大夜"];
+        let isSuccess = false;
+
+        while (attemptCount < 1000) {
+            attemptCount++;
+            isSuccess = true;
+            schedule = [];
+            for (let i = 0; i < 10; i++) { lastShift[i] = ""; shiftCounts[i] = 0; }
+            
+            // 重置統計 (因為每次 retry 都要重新算)
+            stats = Array.from({length: 10}, () => ({ "白班":0, "小夜":0, "大夜":0, "休":0 }));
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                let daySchedule = new Array(10).fill("");
+                let availableWorkers = [];
+                for (let i = 0; i < 10; i++) availableWorkers.push(i);
+
+                for (let s = 0; s < 3; s++) {
+                    let shiftName = dailyShifts[s];
+                    let validPick = false;
+                    let safetyCount = 0;
+                    let minCurrentCounts = 100;
+                    
+                    for (let i = 0; i < 10; i++) {
+                        if (shiftCounts[i] < minCurrentCounts) minCurrentCounts = shiftCounts[i];
+                    }
+
+                    while (!validPick && safetyCount < 50) {
+                        safetyCount++;
+                        let randIdx = Math.floor(Math.random() * availableWorkers.length);
+                        let candidate = availableWorkers[randIdx];
+                        validPick = true;
+
+                        if (shiftName === "白班" && lastShift[candidate] === "小夜") validPick = false;
+                        if (hasExclusion && excludedDocs[candidate] && shiftName === targetShift) validPick = false;
+                        if (shiftCounts[candidate] >= (minCurrentCounts + 2) && safetyCount < 10) validPick = false;
+
+                        if (validPick) {
+                            daySchedule[candidate] = shiftName;
+                            shiftCounts[candidate]++;
+                            stats[candidate][shiftName]++; // 新增：記錄統計
+                            availableWorkers.splice(randIdx, 1);
+                        }
+                    }
+                    if (!validPick) { isSuccess = false; break; }
+                }
+                
+                if (!isSuccess) break;
+
+                while (availableWorkers.length > 0) {
+                    let c = availableWorkers.shift();
+                    daySchedule[c] = "休";
+                    stats[c]["休"]++; // 新增：記錄統計
+                }
+
+                schedule.push(daySchedule);
+                for (let i = 0; i < 10; i++) { lastShift[i] = daySchedule[i]; }
+            }
+
+            if (isSuccess) {
+                let max = Math.max(...shiftCounts);
+                let min = Math.min(...shiftCounts);
+                if ((max - min) <= 1) break;
+            }
+        }
+
+        if (!isSuccess) {
+            alert("運算超時，請重試。");
+            return;
+        }
+
+        // 儲存資料供匯出使用
+        globalScheduleData = schedule;
+        globalDocs = [];
+        for (let i = 1; i <= 10; i++) globalDocs.push(`醫師${String.fromCharCode(64 + i)}`);
+
+        // === 3. 輸出 HTML 表格 (新增週末判斷) ===
+        // 假設今年
+        const currentYear = new Date().getFullYear();
+        
+        // 修改：新增「星期」欄位
+        let html = `<table><thead><tr><th>日期</th><th>星期</th>`;
+        globalDocs.forEach(doc => { html += `<th>${doc}</th>`; });
+        html += `</tr></thead><tbody>`;
+
+        const weekDays = ["日", "一", "二", "三", "四", "五", "六"];
+
+        for (let d = 0; d < schedule.length; d++) {
+            // 新增：計算日期物件與星期
+            let dateObj = new Date(currentYear, mNum - 1, d + 1);
+            let dayOfWeek = dateObj.getDay(); // 0=週日, 6=週六
+            let isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+            let rowClass = isWeekend ? "weekend-row" : "";
+            let weekStr = weekDays[dayOfWeek];
+
+            html += `<tr class="${rowClass}"><td>${d + 1}</td><td>${weekStr}</td>`;
+            
+            for (let doc = 0; doc < 10; doc++) {
+                let val = schedule[d][doc];
+                let cssClass = "";
+                if (val === "大夜") cssClass = "shift-bn";
+                else if (val === "小夜") cssClass = "shift-sn";
+                else if (val === "白班") cssClass = "shift-day";
+                else cssClass = "shift-off";
+                
+                html += `<td class="${cssClass}">${val}</td>`;
+            }
+            html += `</tr>`;
+        }
+        html += `</tbody></table>`;
+        document.getElementById("tableContainer").innerHTML = html;
+
+        // === 4. 新增：輸出統計表 ===
+        let statsHtml = `<table><thead><tr><th>醫師</th><th>白班</th><th>小夜</th><th>大夜</th><th>休假</th><th>總上班數</th></tr></thead><tbody>`;
+        for(let i=0; i<10; i++) {
+            let totalWork = stats[i]["白班"] + stats[i]["小夜"] + stats[i]["大夜"];
+            statsHtml += `<tr>
+                <td>${globalDocs[i]}</td>
+                <td>${stats[i]["白班"]}</td>
+                <td>${stats[i]["小夜"]}</td>
+                <td>${stats[i]["大夜"]}</td>
+                <td>${stats[i]["休"]}</td>
+                <td><strong>${totalWork}</strong></td>
+            </tr>`;
+        }
+        statsHtml += `</tbody></table>`;
+        document.getElementById("statsTable").innerHTML = statsHtml;
+        document.getElementById("statsContainer").style.display = "block";
+
+        let msg = `排班完成！\n標題：${globalTitle}\n天數：${daysInMonth} 天`;
+        if (hasExclusion) msg += `\n規則：【${docListStr.trim()}】不排【${targetShift}】。`;
+        // alert(msg); 
+    }
+
+    // === 新增：匯出 Excel (CSV) 功能 ===
+    function exportToCSV() {
+        if (globalScheduleData.length === 0) {
+            alert("請先產生班表！");
+            return;
+        }
+
+        // BOM for Excel to read UTF-8 correctly
+        let csvContent = "\uFEFF";
+        
+        // 標題列
+        csvContent += "日期,";
+        globalDocs.forEach(doc => { csvContent += doc + ","; });
+        csvContent += "\n";
+
+        // 資料列
+        globalScheduleData.forEach((row, index) => {
+            csvContent += `${index + 1},`; // 日期
+            row.forEach(shift => { csvContent += shift + ","; });
+            csvContent += "\n";
+        });
+
+        // 建立下載連結
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${globalTitle}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
+</body>
+</html>
